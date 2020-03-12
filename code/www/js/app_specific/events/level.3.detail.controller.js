@@ -23,21 +23,48 @@
             responses: [],
             busy: false,
             hasItems: false,
-            hasResponses: false
+            hasResponses: false,
+            indexToEdit : -1,
+            valueToWrite : "/"
 
         });
+
+        vm.sendValue = function(){
+
+            
+                vm.busy = true;
+                var jsonToWrite = {value: vm.valueToWrite.trim()};
+                var bufferToWrite = eventsSrvc.stringToBytes(JSON.stringify(jsonToWrite));
+                
+                eventsSrvc.connectWriteDisconnect(bufferToWrite)
+                .then(
+                    function(response){
+                        var decoded = eventsSrvc.bytesToString(response);
+                        vm.responses.push(decoded);
+                        vm.hasResponses = true;
+                        vm.busy = false;
+                    }
+                )
+                .catch(function (error) {
+                    console.log(JSON.stringify(error, null, 2));
+                    vm.busy = false;
+                });
+            
+
+        }
 
         vm.onItemSelected = function (index) {
             var property = vm.items[index];
             eventsSrvc.selectProperty(property);
 
             if (property == "Read") {
+                vm.indexForEdit = -1;
                 if (!vm.busy) {
                     vm.busy = true;
                     eventsSrvc.connectReadDisconnect()
                         .then(function (response) {
 
-                            var decoded = new TextDecoder().decode(response);
+                            var decoded = eventsSrvc.bytesToString(response);
                             vm.responses.push(decoded);
                             vm.hasResponses = true;
                             vm.busy = false;
@@ -47,6 +74,28 @@
                             vm.busy = false;
                         });
                 }
+            }else if(property == "Write"){
+                vm.indexForEdit = index;
+                vm.valueToWrite = "/";
+            }else if(property == "Notify"){
+                vm.indexForEdit = -1;
+                if (!vm.busy) {
+                    vm.busy = true;
+                    var bufferedQuery = eventsSrvc.createBufferedQuery();
+
+                    bufferedQuery.start(function(progress){
+                        console.log(progress);
+                    }).then(function (response) {
+                            var decoded = eventsSrvc.bytesToString(response);
+                            vm.responses.push(decoded);
+                            vm.hasResponses = true;
+                            vm.busy = false;
+                        })
+                        .catch(function (error) {
+                            console.log(JSON.stringify(error, null, 2));
+                            vm.busy = false;
+                        });
+                    }
             }
 
         }
@@ -62,5 +111,6 @@
         vm.characteristic_id = eventsSrvc.getCharacteristic();
         vm.items = eventsSrvc.getProperties();
         vm.hasItems = vm.items.length > 0;
+        vm.indexForEdit = -1;
     }
 })();

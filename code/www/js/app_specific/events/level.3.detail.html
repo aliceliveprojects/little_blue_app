@@ -29,7 +29,7 @@
         <div ng-show="vm.hasResponses">
 
             <ion-list>
-                <ion-item  ng-repeat="response in vm.responses">
+                <ion-item ng-repeat="response in vm.responses">
                     {{response}}
                 </ion-item>
             </ion-list>
@@ -37,19 +37,36 @@
         </div>
 
 
+
+
+
+
+
     </ion-content>
 
 
-    <ion-footer-bar class="bar bar-dark bar-footer row" style="position:fixed; bottom:0px; padding: 0px;">
-        <i class="col-20"></i>
+    <ion-footer-bar class="bar bar-dark bar-footer" style="position:fixed; bottom:0px; padding: 0px;">
 
-        <button class="button button-positive col" style="margin: 5px; color: white;" ng-click="vm.done()"
-            style="position: absolute; width: 50%; left: 50%; transform: translate(-50%,0%);">
-            <ion-spinner ng-show="vm.busy" class="spinner-light"></ion-spinner>
-            Done
-        </button>
+        <div ng-show="vm.indexForEdit < 0">
 
-        <i class="col-20"></i>
+
+            <button class="button button-positive col-1" style="margin: 5px; color: white;" ng-click="vm.done()"
+                style="position: absolute; width: 50%; left: 50%; transform: translate(-50%,0%);">
+                <ion-spinner ng-show="vm.busy" class="spinner-light"></ion-spinner>
+                Done
+            </button>
+
+
+        </div>
+
+        <div ng-hide="vm.indexForEdit < 0" class="row">
+            <input type="text" ng-model="vm.valueToWrite" class="col">
+            <button class="button button-positive col-1" style="margin: 5px; color: white;" ng-click="vm.sendValue()">
+                <ion-spinner ng-show="vm.busy" class="spinner-light"></ion-spinner>
+                Send
+            </button>
+        </div>
+
     </ion-footer-bar>
 
 </ion-view>

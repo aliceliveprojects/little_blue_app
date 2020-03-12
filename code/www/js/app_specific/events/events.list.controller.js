@@ -51,7 +51,11 @@
         vm.onItemSelected = function(index){
             console.log("Item : " + index);
             eventsSrvc.selectEventAt(index);
-            $state.go('events_detail');
+            //eventsSrvc.attemptMTUChange().then(//always resolves.
+            //    function(){
+                    $state.go('events_detail');                    
+            //    }
+            //);
         }
 
 

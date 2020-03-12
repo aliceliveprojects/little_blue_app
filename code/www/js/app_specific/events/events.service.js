@@ -23,11 +23,25 @@
         var characteristic_id = "";
         var property = "";
         var isBusy = false;
+        var isSubscribed = false;
         var service = {};
 
-        var TIMEOUT_MS = 1000;
+        var TIMEOUT_MS = 5000;
+        var REQUESTED_MTU_SIZE_BYTES = 200; // RPi is usually 20 bytes Maximum Transmission Unit 
 
+        function concatTypedArrays(a, b) { // a, b TypedArray of same type
+            var c = new (a.constructor)(a.length + b.length);
+            c.set(a, 0);
+            c.set(b, a.length);
+            return c;
+        }
 
+        function concatBuffers(a, b) {
+            return concatTypedArrays(
+                new Uint8Array(a.buffer || a),
+                new Uint8Array(b.buffer || b)
+            ).buffer;
+        }
 
 
         function startScan() {
@@ -227,6 +241,8 @@
                 isBusy = true;
                 device_id = id;
                 detail = [];
+
+
                 ble.connect(
                     id,
                     function (data) {
@@ -262,24 +278,208 @@
 
         }
 
+
+        function attemptMTUChange(device_id) {
+            var deferred = $q.defer();
+
+
+            ble.requestMtu(device_id, REQUESTED_MTU_SIZE_BYTES,
+                function mtuSuccess() {
+                    console.log("extended MTU size success.");
+                    deferred.resolve();
+                },
+                function mtuFail() {
+                    console.log("extended MTU size fail.");
+                    deferred.resolve();
+                });
+
+            return deferred.promise;
+        }
+
+        function createBufferedQuery(device_id, service_id, characteristic_id) {
+            var _emergencyExit = null;
+            var _started = false;
+
+            var _device_id = device_id;
+            var _service_id = service_id;
+            var _characteristic_id = characteristic_id;
+            var _chunksToGet = null;
+            var _chunkCount = 0;
+            var _typedArrayHolder = new Uint8Array(0);
+
+
+            function sendProgress(count, total, callback){
+                $timeout(function(){
+                    callback(100 * count / total);
+                }
+                )};
+
+            function start(progressCallback) {
+                if(_started != false){
+                    throw("use once, then throw away.");
+                }
+                _started = true;
+                var deferred = $q.defer();
+                _emergencyExit = deferred;
+                connectSubscribe(
+                    _device_id,
+                    _service_id,
+                    _characteristic_id,
+                    function (data) {
+                        // first chunk is the number of chunks to come.
+                        if (_chunksToGet == null) {
+                            _chunksToGet = parseInt(bytesToString(data));
+                            _chunkCount = 0;
+                        } else {
+                            _chunkCount ++;
+                            if(_chunkCount < _chunksToGet){
+                                _typedArrayHolder = concatTypedArrays(_typedArrayHolder,data);
+                                sendProgress(_chunkCount,_chunksToGet,progressCallback );
+                            }else{
+                                sendProgress(_chunkCount,_chunksToGet,progressCallback );
+                                // no more notifications coming
+                                unsubscribeDisconnect(
+                                    _device_id,
+                                    _service_id,
+                                    _characteristic_id)
+                                    .then(
+                                        function(){
+                                            deferred.resolve(_typedArrayHolder);
+                                        }
+                                    )
+                                    .catch(
+                                        function(error){
+                                            deferred.reject(error);
+                                        }
+                                    );
+                            }
+                        }
+                    });
+                return deferred.promise;
+            }
+
+            function cancel(){
+                unsubscribeDisconnect(
+                    _device_id,
+                    _service_id,
+                    _characteristic_id)
+                    .then(
+                        function(){
+                            _emergencyExit.reject("operation cancelled successfully");
+                        }
+                    )
+                    .catch(
+                        function(error){
+                            _emergencyExit.reject("operation cancelled with errors");
+                        }
+                    );                
+            }
+
+
+
+            var result= {
+                start: start,
+                cancel: cancel
+            }
+            return result;
+        }
+
+
+
+
+        function connectSubscribe(device_id, service_id, characteristic_id, callback) {
+            var deferred = $q.defer();
+
+            if (!isBusy) {
+                isBusy = true;
+
+                ble.connect(
+                    device_id,
+                    function (data) {
+                        ble.startNotification(device_id, service_id, characteristic_id,
+                            function (response) {
+                                isSubscribed = true; // this is called every time there is an update.
+                                callback(response);
+                            },
+                            function (error) {
+                                // assume the deivice has disconnected.
+                                isBusy = false;
+                                isSubscribed = false;
+                                console.log(JSON.stringify(error, null, 2));
+                                deferred.reject(error);
+                            });
+                    },
+                    function (error) {
+                        // assume the deivice has disconnected.
+                        isBusy = false;
+                        isSubscribed = false;
+                        console.log(JSON.stringify(error, null, 2));
+                        deferred.reject(error);
+                    });
+            } else {
+                $timeout(
+                    function () {
+                        deferred.resolve({});
+                    }
+                );
+            }
+            return deferred.promise;
+        }
+
+        function unsubscribeDisconnect(device_id, service_id, characteristic_id) {
+            var deferred = $q.defer();
+            if (isBusy && isSubscribed) {
+                ble.stopNotification(device_id, service_id, characteristic_id,
+                    function success() {
+                        ble.disconnect(device_id,
+                            function () {
+                                isBusy = false;
+                                isSubscribed = false;
+                                deferred.resolve(response);
+                            },
+                            function (error) {
+                                isBusy = false;
+                                isSubscribed = false;
+                                deferred.reject(error);
+                            });
+                        deferred.resolve();
+
+                    },
+                    function error(error) {
+                        isBusy = false;
+                        isSubscribed = false;
+                        console.log(JSON.stringify(error, null, 2));
+                        deferred.reject(error);
+                    });
+                    
+            } else {
+                $timeout(
+                    function () {
+                        deferred.resolve();
+                    }
+                );
+            }
+            return deferred.promise;
+        }
+
+
         function connectWriteDisconnect(device_id, service_id, characteristic_id, arraybuffer) {
             var deferred = $q.defer();
 
             if (!isBusy) {
                 isBusy = true;
-    
+
                 ble.connect(
                     device_id,
                     function (data) {
 
-              
-                        ble.read(device_id, service_id, characteristic_id,
+                        ble.write(device_id, service_id, characteristic_id, arraybuffer,
 
 
                             function (response) {
 
                                 ble.disconnect(
-                                    id,
+                                    device_id,
                                     function () {
                                         isBusy = false;
                                         deferred.resolve(response);
@@ -321,12 +521,12 @@
 
             if (!isBusy) {
                 isBusy = true;
-                
+
                 ble.connect(
                     device_id,
                     function (data) {
 
-   
+                        console.log("reading..");
                         ble.read(device_id, service_id, characteristic_id,
 
 
@@ -371,6 +571,7 @@
         }
 
 
+
         service.updateEvents = function () {
             return asyncScan();
         }
@@ -398,6 +599,10 @@
 
         service.getEvent = function () {
             return event;
+        }
+
+        service.attemptMTUChange = function () {
+            return attemptMTUChange(event.id);
         }
 
         service.updateDetail = function () {
@@ -441,12 +646,29 @@
         }
 
 
-        service.connectReadDisconnect = function(){
+        service.connectReadDisconnect = function () {
             return connectReadDisconnect(device_id, service_id, characteristic_id);
         }
 
-        service.connectWriteDisconnect = function(arraybuffer){
+        service.connectWriteDisconnect = function (arraybuffer) {
             return connectWriteDisconnect(device_id, service_id, characteristic_id, arraybuffer);
+        }
+
+
+        service.stringToBytes = function (string) {
+            var array = new Uint8Array(string.length);
+            for (var i = 0, l = string.length; i < l; i++) {
+                array[i] = string.charCodeAt(i);
+            }
+            return array.buffer;
+        }
+
+        service.bytesToString = function (buffer) {
+            return String.fromCharCode.apply(null, new Uint8Array(buffer));
+        }
+
+        service.createBufferedQuery = function(){
+            return createBufferedQuery(device_id, service_id, characteristic_id);
         }
 
         return service;
