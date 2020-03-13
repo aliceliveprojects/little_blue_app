@@ -51,11 +51,11 @@
         vm.onItemSelected = function(index){
             console.log("Item : " + index);
             eventsSrvc.selectEventAt(index);
-            //eventsSrvc.attemptMTUChange().then(//always resolves.
-            //    function(){
+            eventsSrvc.attemptMTUChange().then(//always resolves.
+                function(){
                     $state.go('events_detail');                    
-            //    }
-            //);
+                }
+            );
         }
 
 

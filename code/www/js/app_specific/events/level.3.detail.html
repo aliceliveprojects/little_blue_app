@@ -29,8 +29,8 @@
         <div ng-show="vm.hasResponses">
 
             <ion-list>
-                <ion-item ng-repeat="response in vm.responses">
-                    {{response}}
+                <ion-item ng-repeat="item in vm.responses track by item.date">
+                    {{item.response}}
                 </ion-item>
             </ion-list>
 

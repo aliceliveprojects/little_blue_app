@@ -53,6 +53,14 @@
 
         }
 
+        function createItem(response){
+            var item = {
+                date: new Date(),
+                response:response
+            }
+            return item;
+        }
+
         vm.onItemSelected = function (index) {
             var property = vm.items[index];
             eventsSrvc.selectProperty(property);
@@ -65,7 +73,7 @@
                         .then(function (response) {
 
                             var decoded = eventsSrvc.bytesToString(response);
-                            vm.responses.push(decoded);
+                            vm.responses.push(createItem(decoded));
                             vm.hasResponses = true;
                             vm.busy = false;
                         })
@@ -84,12 +92,13 @@
                     var bufferedQuery = eventsSrvc.createBufferedQuery();
 
                     bufferedQuery.start(function(progress){
-                        console.log(progress);
+                        console.log(Math.ceil(progress));
                     }).then(function (response) {
                             var decoded = eventsSrvc.bytesToString(response);
-                            vm.responses.push(decoded);
+                            vm.responses.push(createItem(decoded));
                             vm.hasResponses = true;
                             vm.busy = false;
+                            
                         })
                         .catch(function (error) {
                             console.log(JSON.stringify(error, null, 2));

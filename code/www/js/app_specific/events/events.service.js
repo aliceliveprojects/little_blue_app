@@ -44,6 +44,22 @@
         }
 
 
+       function stringToBytes(string) {
+            var array = new Uint8Array(string.length);
+            for (var i = 0, l = string.length; i < l; i++) {
+                array[i] = string.charCodeAt(i);
+            }
+            return array.buffer;
+        }
+
+
+        function bytesToString(buffer) {
+            return String.fromCharCode.apply(null, new Uint8Array(buffer));
+        }
+
+
+
+
         function startScan() {
             var deferred = $q.defer();
             isBusy = true;
@@ -309,8 +325,9 @@
 
 
             function sendProgress(count, total, callback){
+                var progress = 100 * count / total;
                 $timeout(function(){
-                    callback(100 * count / total);
+                    callback(progress);
                 }
                 )};
 
@@ -330,14 +347,16 @@
                         if (_chunksToGet == null) {
                             _chunksToGet = parseInt(bytesToString(data));
                             _chunkCount = 0;
+                            console.log("waiting for: " + _chunksToGet);
                         } else {
-                            _chunkCount ++;
-                            if(_chunkCount < _chunksToGet){
-                                _typedArrayHolder = concatTypedArrays(_typedArrayHolder,data);
+                            _chunkCount++;
+                            
+                            if(_chunkCount <= _chunksToGet){
+                                _typedArrayHolder = concatBuffers(_typedArrayHolder,data);
                                 sendProgress(_chunkCount,_chunksToGet,progressCallback );
-                            }else{
-                                sendProgress(_chunkCount,_chunksToGet,progressCallback );
-                                // no more notifications coming
+                            }
+                            if(_chunkCount >= _chunksToGet){
+                                // any further notifications are bad!
                                 unsubscribeDisconnect(
                                     _device_id,
                                     _service_id,
@@ -396,6 +415,7 @@
                 ble.connect(
                     device_id,
                     function (data) {
+                        
                         ble.startNotification(device_id, service_id, characteristic_id,
                             function (response) {
                                 isSubscribed = true; // this is called every time there is an update.
@@ -435,7 +455,7 @@
                             function () {
                                 isBusy = false;
                                 isSubscribed = false;
-                                deferred.resolve(response);
+                                deferred.resolve();
                             },
                             function (error) {
                                 isBusy = false;
@@ -655,17 +675,10 @@
         }
 
 
-        service.stringToBytes = function (string) {
-            var array = new Uint8Array(string.length);
-            for (var i = 0, l = string.length; i < l; i++) {
-                array[i] = string.charCodeAt(i);
-            }
-            return array.buffer;
-        }
+        service.stringToBytes = stringToBytes;
+        
 
-        service.bytesToString = function (buffer) {
-            return String.fromCharCode.apply(null, new Uint8Array(buffer));
-        }
+        service.bytesToString = bytesToString;
 
         service.createBufferedQuery = function(){
             return createBufferedQuery(device_id, service_id, characteristic_id);
