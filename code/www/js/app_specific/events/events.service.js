@@ -27,7 +27,7 @@
         var service = {};
 
         var TIMEOUT_MS = 5000;
-        var REQUESTED_MTU_SIZE_BYTES = 200; // RPi is usually 20 bytes Maximum Transmission Unit 
+        var REQUESTED_MTU_SIZE_BYTES = 20; // RPi is usually 20 bytes Maximum Transmission Unit 
 
         function concatTypedArrays(a, b) { // a, b TypedArray of same type
             var c = new (a.constructor)(a.length + b.length);
@@ -120,6 +120,27 @@
 
             return deferred.promise;
         }
+
+
+
+        function bleConnect(device_id, success, fail){
+            ble.connect(device_id,
+                function (data){
+                    attemptMTUChange(
+                        device_id, 
+                        function(){
+                            success(data);
+                        }, 
+                        function(){
+                            success(data);
+                        });
+                },
+                fail
+            )
+        }
+
+
+
 
         // EXAMPLE DETAIL - direct from a connection
         // {
@@ -259,7 +280,7 @@
                 detail = [];
 
 
-                ble.connect(
+                bleConnect(
                     id,
                     function (data) {
                         console.log(JSON.stringify(data, null, 2));
@@ -295,21 +316,21 @@
         }
 
 
-        function attemptMTUChange(device_id) {
-            var deferred = $q.defer();
-
-
-            ble.requestMtu(device_id, REQUESTED_MTU_SIZE_BYTES,
-                function mtuSuccess() {
-                    console.log("extended MTU size success.");
-                    deferred.resolve();
+        function attemptMTUChange(device_id, success, fail) {
+            var size = REQUESTED_MTU_SIZE_BYTES;
+            if(!!size){
+            ble.requestMtu(device_id, size,
+                function mtuSuccess(value) {
+                    console.log("extended MTU size success: " + value);
+                    success();
                 },
                 function mtuFail() {
                     console.log("extended MTU size fail.");
-                    deferred.resolve();
+              fail();
                 });
-
-            return deferred.promise;
+            }else{
+                success();
+            }
         }
 
         function createBufferedQuery(device_id, service_id, characteristic_id) {
@@ -343,11 +364,13 @@
                     _service_id,
                     _characteristic_id,
                     function (data) {
+                        console.log("" + _chunkCount + " of " + _chunksToGet);
                         // first chunk is the number of chunks to come.
                         if (_chunksToGet == null) {
-                            _chunksToGet = parseInt(bytesToString(data));
+                            var strChunksToGet = bytesToString(data);
+                            _chunksToGet = parseInt(strChunksToGet);
                             _chunkCount = 0;
-                            console.log("waiting for: " + _chunksToGet);
+                            console.log("waiting for: " + _chunksToGet + "( " + strChunksToGet + " )");
                         } else {
                             _chunkCount++;
                             
@@ -412,7 +435,7 @@
             if (!isBusy) {
                 isBusy = true;
 
-                ble.connect(
+                bleConnect(
                     device_id,
                     function (data) {
                         
@@ -489,7 +512,7 @@
             if (!isBusy) {
                 isBusy = true;
 
-                ble.connect(
+                bleConnect(
                     device_id,
                     function (data) {
 
@@ -542,7 +565,7 @@
             if (!isBusy) {
                 isBusy = true;
 
-                ble.connect(
+                bleConnect(
                     device_id,
                     function (data) {
 
@@ -621,9 +644,7 @@
             return event;
         }
 
-        service.attemptMTUChange = function () {
-            return attemptMTUChange(event.id);
-        }
+
 
         service.updateDetail = function () {
             return connectGetDetailDisconnect(event.id);
