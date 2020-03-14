@@ -26,7 +26,11 @@
         var isSubscribed = false;
         var service = {};
 
-        var TIMEOUT_MS = 5000;
+        var TIMEOUT_MS = 1000;
+
+        // NOTE: Running on Android Nexus 5, MTU of 20 is only possible.
+        // bleno on Raspberry Pi supports requested MTU of 185 when performed via iOS, LightBlue app, from PunchThrough
+        
         var REQUESTED_MTU_SIZE_BYTES = 20; // RPi is usually 20 bytes Maximum Transmission Unit 
 
         function concatTypedArrays(a, b) { // a, b TypedArray of same type
